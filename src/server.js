@@ -18,6 +18,7 @@ import {
 } from "./jobProcessor.js";
 import { Server } from "socket.io";
 import { setupSocketEvents } from "./socketEvents.js";
+import puppeteer from "puppeteer";
 
 const port = process.env.PORT || 3001;
 const redis_address = process.env.REDIS_ADDRESS || "127.0.0.1:6379";
@@ -41,7 +42,20 @@ mongoose
     console.error("Error connecting to MongoDB:", error.message);
   });
 
-channelsQueue.process(queueProcessor(channelsQueue));
+const browser = await puppeteer.launch({
+  headless: true,
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    // `--user-data-dir=${configuration().getUserDataDir()}`,
+  ],
+});
+
+console.log("Starting browser...");
+
+const browserContext = await browser.createBrowserContext();
+
+channelsQueue.process(queueProcessor(channelsQueue, browser, browserContext));
 channelsQueue.on("active", channelsOnActive(channelsQueue, io));
 channelsQueue.on("progress", channelsOnProgress(channelsQueue, io));
 channelsQueue.on("completed", channelsOnCompleted(io));
