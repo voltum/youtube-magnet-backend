@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "cross-env NODE_ENV=development pm2 start ecosystem.config.cjs --env development",
-    "dev:prod": "cross-env NODE_ENV=production REDIS_ADDRESS=45.61.133.225:6379 nodemon src/server.js",
+    "prod": "cross-env NODE_ENV=production pm2 start ecosystem.config.cjs --env production",
     "jobs": "pm2 start ecosystem.config.cjs",
     "jobs:restart": "pm2 delete jobProcessor && pm2 start ecosystem.config.cjs --env development"
   },
