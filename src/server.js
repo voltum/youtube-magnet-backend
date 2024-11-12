@@ -43,7 +43,7 @@ mongoose
   });
 
 const browser = await puppeteer.launch({
-  headless: true,
+  headless: false,
   args: [
     "--no-sandbox",
     "--disable-setuid-sandbox",
@@ -53,9 +53,7 @@ const browser = await puppeteer.launch({
 
 console.log("Starting browser...");
 
-const browserContext = await browser.createBrowserContext();
-
-channelsQueue.process(queueProcessor(channelsQueue, browser, browserContext));
+channelsQueue.process(queueProcessor(channelsQueue, browser));
 channelsQueue.on("active", channelsOnActive(channelsQueue, io));
 channelsQueue.on("progress", channelsOnProgress(channelsQueue, io));
 channelsQueue.on("completed", channelsOnCompleted(io));
