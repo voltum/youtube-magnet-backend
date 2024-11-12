@@ -1,5 +1,3 @@
-// channel.service.js
-
 import { Parser } from "json2csv";
 import { Channel } from "./channel.model.js";
 import fs from "fs";
@@ -53,7 +51,7 @@ export const remove = async (id, folder) => {
     });
   } else {
     console.log(`Deleting channel completely`);
-    return Channel.findByIdAndRemove(id);
+    return Channel.findByIdAndDelete(id);
   }
 };
 

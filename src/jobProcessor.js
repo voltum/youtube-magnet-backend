@@ -1,5 +1,3 @@
-import Queue from "bull";
-import { WebSocket, WebSocketServer } from "ws";
 import puppeteer from "puppeteer";
 import {
   DetermineChannelID,
@@ -7,28 +5,15 @@ import {
   YTCheckEmailCaptcha,
 } from "./utils/helpers.js";
 import LanguageDetect from "languagedetect";
-import { configDotenv } from "dotenv";
-import { Channel } from "./services/channel.model.js";
-import { update } from "./services/channel.service.js";
-import mongoose from "mongoose";
-const channelsQueue = new Queue("channels", "redis://127.0.0.1:6379");
-const wss = new WebSocketServer({ port: 8080 });
+import { update } from "./services/channel/channel.service.js";
+import { emitJobEvent } from "./socketEvents.js";
+import { create as createLog } from "./services/logMessages/logMessage.service.js";
 
-configDotenv();
-mongoose
-  .connect(process.env.MONGODB_STRING)
-  .then(() => {
-    console.log("MongoDB connected");
-  })
-  .catch((error) => {
-    console.error("Error connecting to MongoDB:", error.message);
-  });
-
-channelsQueue.process(async (job, done) => {
-console.time('processTimer');
+export const queueProcessor = (channelsQueue) => async (job, done) => {
+  console.time("processTimer");
   console.log("Starting browser...");
   const browser = await puppeteer.launch({
-    headless: false,
+    headless: true,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -42,7 +27,7 @@ console.time('processTimer');
     url,
     folder,
     chunkStamp,
-    skipMedia = false,
+    skipMedia = true,
     options = {},
   } = job.data;
 
@@ -166,86 +151,72 @@ console.time('processTimer');
     done(err);
     return err;
   }
-});
+};
 
-wss.on("connection", function connection(ws) {
-  ws.on("error", console.error);
-
-  ws.on("message", function message(data) {
-    console.log("received: %s", data);
-  });
-  
-  ws.on('events:active', function message(data) {
-    ws.send(data);
-  })
-
-  ws.send("something");
-});
-
-function broadcastEvent(event, payload) {
-  wss.clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({ event, payload }));
-    }
-  });
-}
-
-channelsQueue.on("active", async function (job) {
+export const channelsOnActive = (channelsQueue, io) =>
+  async function (job) {
     const remainedCount = await channelsQueue.getWaitingCount();
-    broadcastEvent("events:active", { job, remainedCount });
-    
+    emitJobEvent(io, "events:active", { job, remainedCount });
+
     console.log("QueueProcessor", `Processing job ${job.data.id}...`);
-});
+  };
 
-channelsQueue.on("progress", async function (job, progress) {
+export const channelsOnProgress = (channelsQueue, io) =>
+  async function (job, progress) {
     const remainedCount = await channelsQueue.getWaitingCount();
-    broadcastEvent("events:progress", {
-        id: job.data.id,
-        progress,
-        remainedCount,
+    emitJobEvent(io, "events:progress", {
+      id: job.data.id,
+      progress,
+      remainedCount,
     });
-});
+  };
 
-channelsQueue.on('completed', async function (job, result) {
-    broadcastEvent("events:completed", { job: result });
-    console.log(
-        "Job completed " + JSON.stringify(job.id),
-        "ChannelsConsumer"
-    );
-    
+export const channelsOnCompleted = (io) =>
+  async function (job, result) {
+    emitJobEvent(io, "events:completed", { job: result });
+    console.log("Job completed " + JSON.stringify(job.id), "ChannelsConsumer");
+
     console.log(`Job completed. Updating database`);
     const { id } = result;
     try {
-        const updatedChannel = await update(
-          id,
-          { $set: result },
-          { upsert: true }
-        );
-        console.log(`Channel updated`, updatedChannel);
+      const updatedChannel = await update(
+        id,
+        { $set: result },
+        { upsert: true }
+      );
+      console.log(`Channel updated`, updatedChannel);
     } catch (error) {
-        console.error(`Error updating channel: ${error.message}`);
+      console.error(`Error updating channel: ${error.message}`);
     }
-})
+  };
 
-
-channelsQueue.on("drained", async function () {
-    broadcastEvent("events:empty");
+export const channelsOnDrained = (io) =>
+  async function () {
+    emitJobEvent(io, "events:empty");
     console.log("Queue empty", "ChannelsConsumer");
-});
+  };
 
-channelsQueue.on('failed', function (job, error) {
-    broadcastEvent('events:error', `'${job.data.id}': ${error}`);
-    broadcastEvent('events:inactive', { id: job.data.id });
-    broadcastEvent({
+export const channelsOnFailed = (io) =>
+  async function (job, error) {
+    emitJobEvent(io, "events:error", `'${job.data.id}': ${error}`);
+    emitJobEvent(io, "events:inactive", { id: job.data.id });
+    emitJobEvent(io, {
       url: job.data.id,
       text: String(error),
       folder: job.data.folder,
       status: String(error),
     });
-    console.error(error, 'ChannelsConsumer');
-})
+    await createLog({
+      url: job.data.id,
+      text: String(error),
+      folder: job.data.folder,
+      status: String(error),
+    });
+    console.error(error, "ChannelsConsumer");
+  };
 
-channelsQueue.on('stalled', function (job) {
-    broadcastEvent('events:error', `Process ${job.data.id} stalled!`);
+export const channelsOnStalled = (io) =>
+  function (job) {
+    emitJobEvent(io, "events:error", `Process ${job.data.id} stalled!`);
     console.error(`Process ${job.data.id} stalled!`);
-})
+  };

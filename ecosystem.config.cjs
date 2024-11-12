@@ -1,9 +1,12 @@
 module.exports = {
   apps: [
     {
+      name: "api",
+      script: "./src/server.js",
+    },
+    {
       name: "jobProcessor",
       script: "./src/jobProcessor.js",
-      watch: true,
     },
   ],
   env: { NODE_ENV: "development" },

@@ -9,7 +9,7 @@ export const AppConfig = () => {
   } = process.env;
 
   return {
-    port: parseInt(PORT, 10) || 3000,
+    port: parseInt(PORT, 10) || 3001,
     getUserDataDir: () => {
       return USER_DATA_DIR || ".";
     },

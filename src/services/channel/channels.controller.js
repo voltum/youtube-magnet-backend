@@ -3,8 +3,8 @@ import bodyParser from "body-parser";
 import multer from "multer";
 import fs from "fs";
 import * as channelService from "./channel.service.js";
-import * as queueService from "./queue.service.js";
-import { CSVToArray } from "../utils/helpers.js";
+import * as queueService from "../queue.service.js";
+import { CSVToArray } from "../../utils/helpers.js";
 
 const router = express.Router();
 const upload = multer({ dest: "uploads/" });
@@ -103,6 +103,13 @@ router.post("/upload", upload.single("file"), (req, res) => {
       res.status(200).json(jobs);
     } catch (error) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  fs.unlink(req.file.path, (err) => {
+    if (err) {
+      console.error(err);
+      throw new Error("Failed to delete file");
     }
   });
 });

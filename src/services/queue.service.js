@@ -1,5 +1,5 @@
 import Bull from "bull";
-import { Channel } from "./channel.model.js";
+import { Channel } from "./channel/channel.model.js";
 
 const channelsQueue = new Bull("channels");
 
